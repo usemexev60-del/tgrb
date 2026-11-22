@@ -8,8 +8,13 @@ const multer = require('multer');
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({ secret: 'secret-key', resave: false, saveUninitialized: true }));
+
+// مسار الصفحة الرئيسية
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // قاعدة بيانات وهمية
 let users = {}; 
@@ -236,3 +241,5 @@ app.get('/ping', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+module.exports = app;
