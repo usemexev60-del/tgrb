@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>لوحة التحكم - استضافة بوتات</title>
+<style>
+  body { background: #2c2f33; color: #fff; font-family: sans-serif; margin: 0; padding: 20px; }
+  .container { max-width: 900px; margin: auto; }
+  .panel { background: #23272a; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+  button { background: #5865f2; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-left: 10px; font-family: inherit; }
+  button:hover { opacity: 0.9; }
+  button.red { background: #f04747; } 
+  button.green { background: #43b581; }
+  button.gray { background: #4f545c; }
+  input[type="text"] { padding: 10px; border-radius: 4px; border: none; width: 200px; font-family: inherit; }
+  input[type="file"] { color: #fff; }
+  .console { background: #000; color: #0f0; padding: 15px; font-family: monospace; height: 300px; overflow-y: scroll; margin-top: 10px; white-space: pre-wrap; border-radius: 4px; border: 1px solid #444; }
+  .flex { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .file-tag { background: #4f545c; padding: 5px 10px; border-radius: 4px; font-size: 14px; margin-left: 5px; display: inline-block; margin-bottom: 5px; }
+  .status-running { color: #43b581; font-weight: bold; }
+  .status-stopped { color: #f04747; font-weight: bold; }
+  .project-card { background: #2c2f33; padding: 15px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #444; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  
+  <!-- الصفحة الرئيسية (قائمة المشاريع) -->
+  <div id="projects-view">
+    <div class="flex" style="justify-content: space-between; margin-bottom: 20px;">
+      <h1>استضافاتي</h1>
+      <button onclick="logout()" style="background: #4f545c;">تسجيل خروج</button>
+    </div>
+    
+    <div class="panel">
+      <h3>إنشاء استضافة جديدة</h3>
+      <div class="flex">
+        <input type="text" id="newProjectName" placeholder="اسم الاستضافة (بالإنجليزي)">
+        <button onclick="createProject()" class="green">إنشاء</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>الاستضافات الموجودة</h3>
+      <div id="projectsList">جاري التحميل...</div>
+    </div>
+  </div>
+
+  <!-- صفحة إدارة الاستضافة (تظهر عند اختيار استضافة) -->
+  <div id="manage-view" class="hidden">
+    <div class="flex" style="justify-content: space-between; margin-bottom: 20px;">
+      <h1>إدارة: <span id="currentProjectName" style="color: #5865f2;"></span></h1>
+      <button onclick="backToProjects()" class="gray">رجوع للقائمة</button>
+    </div>
+
+    <div class="panel">
+      <h3>الملفات</h3>
+      <div id="fileList" style="margin-bottom: 15px; min-height: 30px;">جاري تحميل الملفات...</div>
+      <div class="flex">
+          <input type="file" id="fileInput">
+          <button onclick="uploadFile()">رفع ملف</button>
+          <button onclick="loadFiles()" class="gray">تحديث</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>إعدادات التشغيل</h3>
+      <div class="flex">
+        <label>ملف التشغيل:</label>
+        <input type="text" id="mainFile" value="index.js">
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>التحكم بالبوت</h3>
+      <div class="flex" style="margin-bottom: 20px;">
+          <button class="green" onclick="startBot()">▶ تشغيل</button>
+          <button class="red" onclick="stopBot()">⏹ إيقاف</button>
+          <span id="statusText" class="status-stopped">الحالة: متوقف</span>
+      </div>
+      <h3>الكونسول</h3>
+      <div class="console" id="consoleOutput">في انتظار التشغيل...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentProject = null;
+let consoleInterval = null;
+
+// --- إدارة العرض ---
+function showProjectsView() {
+    document.getElementById('projects-view').classList.remove('hidden');
+    document.getElementById('manage-view').classList.add('hidden');
+    if (consoleInterval) clearTimeout(consoleInterval);
+    loadProjects();
+}
+
+function showManageView(projectName) {
+    currentProject = projectName;
+    document.getElementById('currentProjectName').textContent = projectName;
+    document.getElementById('projects-view').classList.add('hidden');
+    document.getElementById('manage-view').classList.remove('hidden');
+    
+    // إعادة تعيين الكونسول
+    document.getElementById('consoleOutput').textContent = 'جاري التحقق من الحالة...';
+    document.getElementById('statusText').textContent = 'الحالة: متوقف';
+    document.getElementById('statusText').className = 'status-stopped';
+    
+    loadFiles();
+    updateConsole();
+}
+
+function backToProjects() {
+    currentProject = null;
+    showProjectsView();
+}
+
+// --- إدارة المشاريع ---
+async function loadProjects() {
+    try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        const container = document.getElementById('projectsList');
+        
+        if (data.projects && data.projects.length > 0) {
+            container.innerHTML = data.projects.map(p => `
+                <div class="project-card">
+                    <span style="font-size: 18px; font-weight: bold;">📁 ${p}</span>
+                    <button onclick="showManageView('${p}')">إدارة الاستضافة</button>
+                </div>
+            `).join('');
+        } else {
+            container.textContent = 'لا توجد استضافات. أنشئ واحدة للبدء.';
+        }
+    } catch (err) {
+        document.getElementById('projectsList').textContent = 'خطأ في تحميل الاستضافات.';
+    }
+}
+
+async function createProject() {
+    const name = document.getElementById('newProjectName').value.trim();
+    if (!name) return alert('اكتب اسم الاستضافة');
+    
+    const res = await fetch('/api/projects/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ projectName: name })
+    });
+    const data = await res.json();
+    if (data.success) {
+        document.getElementById('newProjectName').value = '';
+        loadProjects();
+    } else {
+        alert(data.error);
+    }
+}
+
+// --- إدارة الملفات ---
+async function loadFiles() {
+    if (!currentProject) return;
+    try {
+        const res = await fetch(`/api/files?project=${currentProject}`);
+        const data = await res.json();
+        const fileListDiv = document.getElementById('fileList');
+        
+        if (data.files && data.files.length > 0) {
+            fileListDiv.innerHTML = data.files.map(f => `<span class="file-tag">${f}</span>`).join('');
+        } else {
+            fileListDiv.textContent = 'لا توجد ملفات.';
+        }
+    } catch (err) {
+        document.getElementById('fileList').textContent = 'خطأ في تحميل الملفات';
+    }
+}
+
+async function uploadFile() {
+    if (!currentProject) return;
+    const fileInput = document.getElementById('fileInput');
+    if (!fileInput.files.length) return alert('اختر ملفاً');
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = 'جاري الرفع...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    
+    try {
+        const res = await fetch(`/api/files/upload?project=${currentProject}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('تم الرفع: ' + data.filename);
+            fileInput.value = '';
+            loadFiles();
+        } else {
+            alert('فشل الرفع: ' + data.error);
+        }
+    } catch (err) {
+        alert('حدث خطأ في الاتصال');
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
+// --- التحكم بالبوت ---
+async function startBot() {
+    if (!currentProject) return;
+    const mainFile = document.getElementById('mainFile').value.trim();
+    if (!mainFile) return alert('اكتب اسم ملف التشغيل');
+
+    const statusText = document.getElementById('statusText');
+    statusText.textContent = 'جاري التشغيل...';
+    statusText.className = '';
+
+    try {
+        const res = await fetch('/api/bot/start', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ project: currentProject, mainFile })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            updateConsole();
+        } else {
+            alert('فشل: ' + data.error);
+            statusText.textContent = 'الحالة: متوقف';
+            statusText.className = 'status-stopped';
+        }
+    } catch (err) {
+        alert('خطأ في الاتصال');
+    }
+}
+
+async function stopBot() {
+    if (!currentProject) return;
+    try {
+        await fetch('/api/bot/stop', { 
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ project: currentProject })
+        });
+        document.getElementById('statusText').textContent = 'الحالة: متوقف';
+        document.getElementById('statusText').className = 'status-stopped';
+        if (consoleInterval) clearTimeout(consoleInterval);
+    } catch (err) {
+        alert('خطأ أثناء الإيقاف');
+    }
+}
+
+async function updateConsole() {
+    if (!currentProject) return;
+    try {
+        const res = await fetch(`/api/bot/status?project=${currentProject}`);
+        const data = await res.json();
+        const consoleDiv = document.getElementById('consoleOutput');
+        
+        if (data.logs && consoleDiv.textContent !== data.logs) {
+            consoleDiv.textContent = data.logs;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        if (data.isRunning) {
+            document.getElementById('statusText').textContent = 'الحالة: يعمل';
+            document.getElementById('statusText').className = 'status-running';
+            consoleInterval = setTimeout(updateConsole, 2000);
+        } else {
+            document.getElementById('statusText').textContent = 'الحالة: متوقف';
+            document.getElementById('statusText').className = 'status-stopped';
+            // إذا كان هناك سجلات، استمر في التحديث فقط إذا كان هناك عملية تثبيت
+            if(data.logs.includes('جاري تجهيز البيئة') && !data.logs.includes('اكتمل التثبيت') && !data.logs.includes('البوت توقف') && !data.logs.includes('فشل')) {
+               consoleInterval = setTimeout(updateConsole, 2000);
+            }
+        }
+    } catch (err) {
+        consoleInterval = setTimeout(updateConsole, 5000);
+    }
+}
+
+function logout() {
+    window.location.href = '/api/logout';
+}
+
+// بدء التطبيق
+showProjectsView();
+</script>
+</body>
+</html>

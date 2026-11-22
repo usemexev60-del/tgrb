@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تسجيل الدخول - استضافة بوتات</title>
+<style>
+  body { background: #2c2f33; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  .box { background: #23272a; padding: 30px; border-radius: 8px; width: 300px; }
+  input { width: 100%; padding: 10px; margin: 10px 0; border-radius: 4px; border: none; }
+  button { width: 100%; padding: 10px; background: #5865f2; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+  h2 { text-align: center; }
+  .tabs { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .tabs span { cursor: pointer; padding: 5px; border-bottom: 2px solid transparent; }
+  .tabs .active { border-bottom: 2px solid #5865f2; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h2>استضافة بوتات</h2>
+  <div class="tabs">
+    <span id="tab-login" class="active" onclick="switchTab('login')">تسجيل الدخول</span>
+    <span id="tab-register" onclick="switchTab('register')">إنشاء حساب</span>
+  </div>
+
+  <div id="form-login">
+    <input type="email" id="login-email" placeholder="البريد الإلكتروني">
+    <input type="password" id="login-pass" placeholder="كلمة السر">
+    <button onclick="login()">دخول</button>
+  </div>
+
+  <div id="form-register" style="display:none;">
+    <input type="text" id="reg-name" placeholder="اسم المستخدم">
+    <input type="email" id="reg-email" placeholder="البريد الإلكتروني">
+    <input type="password" id="reg-pass" placeholder="كلمة السر">
+    <button onclick="register()">إنشاء حساب</button>
+  </div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.getElementById('form-login').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+}
+
+async function login() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-pass').value;
+  const res = await fetch('/api/login', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (data.success) window.location.href = '/dashboard';
+  else alert(data.error);
+}
+
+async function register() {
+  const username = document.getElementById('reg-name').value;
+  const email = document.getElementById('reg-email').value;
+  const password = document.getElementById('reg-pass').value;
+  const res = await fetch('/api/register', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ username, email, password })
+  });
+  const data = await res.json();
+  if (data.success) alert('تم إنشاء الحساب! يمكنك الدخول الآن.');
+  else alert(data.error);
+}
+</script>
+</body>
+</html>
