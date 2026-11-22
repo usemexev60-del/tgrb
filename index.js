@@ -24,10 +24,11 @@ let bots = {};
 const ADMIN_EMAIL = 'jaam@host.met';
 const ADMIN_PASS = 'azoazo';
 
-// مسار تخزين المشاريع: servers/email/projectName
+// مسار تخزين المشاريع: يستخدم /tmp/servers على Vercel لأنه قابل للكتابة المؤقتة
 function getBasePath(email) {
     const safeEmail = email.replace(/[^a-zA-Z0-9@._-]/g, '_');
-    return path.join(__dirname, 'servers', safeEmail);
+    const rootDir = process.env.VERCEL ? '/tmp/servers' : path.join(__dirname, 'servers');
+    return path.join(rootDir, safeEmail);
 }
 
 // --- مسارات الحسابات ---
